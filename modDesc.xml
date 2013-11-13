@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<modDesc descVersion="9">
+	<author>Jakob Tischler</author>
+	<version>0.1</version>
+	<title>
+		<en>Courseplay Pathfinding</en>
+		<de>Courseplay Pathfinding</de>
+	</title>
+	<description>
+		<en><![CDATA[]]></en>
+		<de><![CDATA[]]></de>
+	</description>
+	<iconFilename>store_cppf.dds</iconFilename>
+	<multiplayer supported="false" />
+	<extraSourceFiles>
+		<sourceFile filename="cppf.lua" />
+	</extraSourceFiles>
+
+	<l10n>
+		<text name="CPPF_HANDLEMARKERCOURSE">
+			<en>CPPF_HANDLEMARKERCOURSE</en>
+			<de>CPPF_HANDLEMARKERCOURSE</de>
+		</text>
+		<text name="CPPF_GETTILEFROMCOORDS">
+			<en>CPPF_GETTILEFROMCOORDS</en>
+			<de>CPPF_GETTILEFROMCOORDS</de>
+		</text>
+	</l10n>
+	<inputBindings>
+		<input name="CPPF_HANDLEMARKERCOURSE" category="VEHICLE ONFOOT" key1="KEY_rshift KEY_c"  key2="" button="" device="0" mouse="" />
+		<input name="CPPF_GETTILEFROMCOORDS"  category="VEHICLE ONFOOT" key1="KEY_rshift KEY_d"  key2="" button="" device="0" mouse="" />
+	</inputBindings>
+</modDesc>
+
