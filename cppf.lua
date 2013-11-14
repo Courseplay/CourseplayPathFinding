@@ -24,10 +24,11 @@ function cppf:loadMap(name)
 	source(cppf.modDir .. "pathfindingLibrary.lua");
 
 	self.pathPointsVis = { "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","X","Y","Z" }
-	self.testCourse = "f9 umrand";
+	self.testCourse = "f17";
 	--self.route = { from = { x = 114, z = 42 }, to = { x =  71, z = 56 } }; --f9 umrand
-	self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
+	--self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
+	self.route = { from = { x = 1164, z = 10736 }, to = { x =  1217, z = 974 } }; --f17
 
 	self.tileSize = 5;
 	self.walkable = 0;

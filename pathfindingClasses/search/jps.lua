@@ -160,11 +160,11 @@ In case diagonal moves are forbidden, when lateral nodes (perpendicular to
 the direction of moves are walkable, we force them to be turning points in other
 to perform a straight move.
 --]]
-local function jump(finder, node, parent, endNode)
+local function jump(finder, node, parent, endNode) -- recursive function
 if not node then return end
 
-local x,y = node.x, node.y
-local dx, dy = x - parent.x,y - parent.y
+local x,y = node.x, node.y					-- the node here is the "neighbour" (true for initial call)
+local dx, dy = x - parent.x,y - parent.y	-- while parent is the "node" from the open list (true for initial call)                 
 
 -- If the node to be examined is unwalkable, return nil
 if not finder.grid:isWalkableAt(x,y,finder.walkable) then return end
@@ -215,7 +215,7 @@ end
 
 -- Recursive diagonal search
 if finder.allowDiagonal then
-  if finder.grid:isWalkableAt(x+dx,y,finder.walkable) or finder.grid:isWalkableAt(x,y+dy,finder.walkable) then
+  if finder.grid:isWalkableAt(x+dx,y,finder.walkable) or finder.grid:isWalkableAt(x,y+dy,finder.walkable) then	--dx and/or dy may be zero! (horizontal, vertical search)
 	return jump(finder,finder.grid:getNodeAt(x+dx,y+dy),node,endNode)
   end
 end
@@ -265,12 +265,12 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 				local newG = node.g + extraG
 				if not jumpNode.opened or newG < jumpNode.g then
 					toClear[jumpNode] = true -- Records this node to reset its properties later.
-					jumpNode.g = newG
-					jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y))
-					jumpNode.f = jumpNode.g+jumpNode.h
+					jumpNode.g = newG	-- costs to node
+					jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y)) -- minimal costs to destination
+					jumpNode.f = jumpNode.g+jumpNode.h -- minimal total costs for destination over this node
 					jumpNode.parent = node
 					if not jumpNode.opened then
-						finder.openList:push(jumpNode)
+						finder.openList:push(jumpNode) -- Why they push without checking if jumpNode.f is smaller than endNode.f? Comment 1
 						jumpNode.opened = true
 						if not step_first then step_first = true end
 					else
@@ -281,6 +281,11 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 		end
 	end
 end
+--[[
+Comment 1: if it is bigger or equal, jumpNode will never provide us a shorter path.
+	Algorithm will work anyway (as they put also the endNode into the openList and pop from the openList with respect to node.f), but heap is bigger than needed. -> unnecessary computations
+--]]
+
 
 -- Calculates a path.
 -- Returns the path from location `<startX, startY>` to location `<endX, endY>`.
@@ -293,12 +298,12 @@ function cppf.Finders.JPS(finder, startNode, endNode, toClear, tunnel)
 	toClear[startNode] = true
 
 	local node
-	while not finder.openList:empty() do
-		-- Pops the lowest F-cost node, moves it in the closed list
+	while not finder.openList:empty() do -- "ASTAR" loop
+		-- Pops the lowest F-cost node, moves it in the closed list (best first search)
 		node = finder.openList:pop()
 		node.closed = true
 		-- If the popped node is the endNode, return it
-		if node == endNode then
+		if node == endNode then -- they put the endNode in the openBin, when it is the shortest in the bin, there is no other possible way to be shorter. Makes sense but is that efficient?  Yes, but works only with best first search. Explanation 1
 			return node
 		end
 		-- otherwise, identify successors of the popped node
@@ -309,3 +314,10 @@ function cppf.Finders.JPS(finder, startNode, endNode, toClear, tunnel)
 	return nil
 end
 
+--[[
+Explanation 1: This makes the end more efficient.
+	When notes were put into the openList, they are shorter than the endNode, but when the endNode is updated, they can become longer.
+	In the label correcting standard implementation (ASTAR is a variation of it) all these nodes and its direct children are still considered,
+	which is definitely needed if one performs a depth (last in, first out) or brendth (first in, first out) search.
+	In best first search case however one knows when poping out a node from the openList, that all other nodes are worse, so one can use this information.
+--]]

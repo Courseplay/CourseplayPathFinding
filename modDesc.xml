@@ -7,8 +7,8 @@
 		<de>Courseplay Pathfinding</de>
 	</title>
 	<description>
-		<en><![CDATA[]]></en>
-		<de><![CDATA[]]></de>
+		<en><![CDATA[xyz]]></en>
+		<de><![CDATA[xyz]]></de>
 	</description>
 	<iconFilename>store_cppf.dds</iconFilename>
 	<multiplayer supported="false" />
