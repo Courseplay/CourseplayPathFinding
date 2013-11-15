@@ -335,7 +335,7 @@ function cppf.Grid:buildGrid(map)
 
 	local nodes = {}
 	for y in pairs(map) do
-		min_bound_y = not min_bound_y and y or (y<min_bound_y and y or min_bound_y)
+		min_bound_y = not min_bound_y and y or (y<min_bound_y and y or min_bound_y)  -- Explanation 1; returns y when called the first time, returns y if y<min_bound_y, returns min_bound_y else
 		max_bound_y = not max_bound_y and y or (y>max_bound_y and y or max_bound_y)
 		nodes[y] = {}
 		for x in pairs(map[y]) do
@@ -346,6 +346,24 @@ function cppf.Grid:buildGrid(map)
 	end
 	return nodes, (min_bound_x or 0), (max_bound_x or 0), (min_bound_y or 0), (max_bound_y or 0)
 end
+--[[
+Explanation 1:
+	'not' is executed before 'and' is executed before 'or'
+	not returns:
+		true if input is nil or false
+		false else
+	and returns:	
+		the left side if nil and false are at the sides
+		nil if one side is nil and the other non-false and non-nil
+		false if one side is false and the other non-false and non-nil
+		the right side if both sides are non-nil and non-false
+	or returns:
+		nil if both sides are nil
+		the non-nil side if one side is nil
+		the non-false side if both sides are non-nil and one is false
+		the left side if both sides are non-nil and non-false
+		--> if left side is non-nil and non-false, right side will not be executed as it will return the left side anyway
+--]]
 
 -- Checks if a value is out of and interval [lowerBound,upperBound]
 function cppf.Grid:outOfRange(i,lowerBound,upperBound)

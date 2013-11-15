@@ -291,17 +291,17 @@ Comment 1: if it is bigger or equal, jumpNode will never provide us a shorter pa
 -- Returns the path from location `<startX, startY>` to location `<endX, endY>`.
 function cppf.Finders.JPS(finder, startNode, endNode, toClear, tunnel)
 	step_first = false
-	startNode.g, startNode.f = 0,0
+	startNode.g, startNode.f = 0,0  -- Comment 1
 	finder.openList:clear()
 	finder.openList:push(startNode)
 	startNode.opened = true
-	toClear[startNode] = true
+	toClear[startNode] = true  -- Comment 1
 
 	local node
 	while not finder.openList:empty() do -- "ASTAR" loop
 		-- Pops the lowest F-cost node, moves it in the closed list (best first search)
 		node = finder.openList:pop()
-		node.closed = true
+		node.closed = true	-- Comment 2
 		-- If the popped node is the endNode, return it
 		if node == endNode then -- they put the endNode in the openBin, when it is the shortest in the bin, there is no other possible way to be shorter. Makes sense but is that efficient?  Yes, but works only with best first search. Explanation 1
 			return node
@@ -319,5 +319,11 @@ Explanation 1: This makes the end more efficient.
 	When notes were put into the openList, they are shorter than the endNode, but when the endNode is updated, they can become longer.
 	In the label correcting standard implementation (ASTAR is a variation of it) all these nodes and its direct children are still considered,
 	which is definitely needed if one performs a depth (last in, first out) or brendth (first in, first out) search.
-	In best first search case however one knows when poping out a node from the openList, that all other nodes are worse, so one can use this information.
+	In best first search case however one knows when popping out a node from the openList, that all other nodes are worse, so one can use this information.
+Comment 1: They get the nodes from the grid, as returning a table, returns a references, they add some properties to these tables here (g,f).
+	These properties need to be reset before the algorithm (or any other on the same grid) executes again -> pathfinder.lua: reset() function called in getPath() function
+Comment 2: I still don't understand what the closed property is good for...
+	It looks like a security to not work on a node twice, this would imply that the first way found to a specific node is also the shortest.
+	Maybe that's the case for JumpPointSearch, as it operates in uniform Euclidean costs (in a framework with A* on the expected minimal end costs over the specific node (node.f), as it is the case here)
+	In my code I should leave that away, as it may introduce problems together with the non-Euclidean costs. The first found path may not be the shortest anymore.
 --]]

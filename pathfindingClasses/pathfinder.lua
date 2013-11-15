@@ -241,7 +241,7 @@ function cppf.Pathfinder:getPath(startX, startY, endX, endY, tunnel)
 	assert(endNode and self.grid:isWalkableAt(endX, endY), ('Invalid or unreachable location [%d, %d]'):format(endX, endY));
 	local _endNode = cppf.Finders[self.finder](self, startNode, endNode, toClear, tunnel)
 	if _endNode then 
-		return traceBackPath(self, _endNode, startNode), lastPathCost
+		return traceBackPath(self, _endNode, startNode), lastPathCost  --  lastPathCost seems to be global
 	end
 	lastPathCost = 0
 	return nil, lastPathCost
