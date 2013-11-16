@@ -1,3 +1,142 @@
+-- Grid
+
+-- Standard evaluation function
+local function evalMapAt(x,y)
+	return 1, true, {straight=1, diagonal=math.sqrt(2)};
+end
+
+--[[ Horoman's Grid:
+grid.limits.minX
+grid.limits.maxX
+grid.limits.minY
+grid.limits.maxY
+grid.limits.maxIndexX
+grid.limits.maxIndexY
+grid.tileSize
+grid.map[][] = {category, walkable, costs={straight, diagonal}}
+grid._evaluationFunction
+grid.polygon = {points, xName, yName}
+--]]
+
+cppf.Grid = {};
+cppf.Grid.__index = cppf.Grid;
+
+function cppf.Grid:new(tileSize, polygon, xName, yName)
+	local newGrid = {polygon={}, map={}, limits={}, _evaluationFunction=evalMapAt};
+	setmetatable(newGrid, self);
+	--self.__index = self;
+	
+	newGrid.tileSize = tileSize or 1;
+	newGrid.polygon.xName = xName or 'x';
+	newGrid.polygon.yName = yName or 'y';
+	newGrid.polygon.points = polygon;
+	newGrid:findLimits();
+		
+	return newGrid;
+end
+
+function cppf.Grid:getIndexAt(x, y)
+	local indexX = Utils.clamp(math.ceil((x - self.limits.minX) / self.tileSize), 1, self.limits.maxIndexX);
+	local indexY = Utils.clamp(math.ceil((y - self.limits.minY) / self.tileSize), 1, self.limits.maxIndexY);
+	return indexX, indexY;
+end
+
+function cppf.Grid:getX(IndexX)
+	local x;
+	if IndexX > 0 and IndexX < self.limits.maxIndexX then
+		x = self.limits.minX - self.tileSize/2 + (IndexX*self.tileSize);
+	elseif IndexX == self.limits.maxIndexX then
+		local prevX = (self.limits.minX - self.tileSize/2 + ((IndexX-1)*self.tileSize));
+		x = prevX + (self.limits.maxX - prevX)/2;
+	end
+	return x
+end
+
+function cppf.Grid:getY(IndexY)
+	local y;
+	if IndexY > 0 and IndexY < self.limits.maxIndexY then
+		y = self.limits.minY - self.tileSize/2 + (IndexY*self.tileSize);
+	elseif IndexY == self.limits.maxIndexY then
+		local prevY = (self.limits.minY - self.tileSize/2 + ((IndexY-1)*self.tileSize));
+		y = prevY + (self.limits.maxY - prevY)/2;
+	end
+	return y
+end
+
+function cppf.Grid:findLimits()
+	local minX, maxX
+	local minY, maxY
+	local x, y
+
+	for k, point in pairs(self.polygon.points)
+		x = point[self.polygon.xName];
+		y = point[self.polygon.yName];
+		minX = not minX and x or (x<minX and x or minX)
+		maxX = not maxX and x or (x>maxX and x or maxX)
+		minY = not minY and y or (y<minY and y or minY)
+		maxY = not maxY and y or (y>maxY and y or maxY)
+	end
+	
+	self.limits.minX = minX;
+	self.limits.maxX = maxX;
+	self.limits.minY = minY;
+	self.limits.maxY = maxY;
+	self.limits.maxIndexX = math.ceil((maxX-minX)/self.tileSize);
+	self.limits.maxIndexY = math.ceil((maxY-minY)/self.tileSize);
+end
+
+function cppf.Grid:isPointInPolygon(x,y)
+--@src: http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+		
+	local j;
+	local point = self.polygon.points;
+	local N = #point;
+	local xName, yName = self.polygon.xName, self.polygon.yName;
+	local inside = false;
+	
+	for i = 1, N do
+		j = i == 1 and N or i-1;
+		xi, yi = point[i][xName], point[i][yName];
+		xj, yj = point[j][xName], point[j][yName];
+		if ( (yi > y) ~= (yj > y) ) and (x < (xj-xi]) * (y-yi) / (yj-yi) + xi) then
+			inside = not inside;
+		end
+	end
+end
+
+function cppf.Grid:setEvaluationFunction(evalFunction)
+	self._evaluationFunction = evalFunction;
+end
+
+function cppf.Grid:evaluate()
+	local category, wakable, costs;
+	local x, y;
+	for indexY = 1,self.limits.maxIndexY do
+		y = self:getY(indexY);
+		if not self.map[indexY] then
+			self.map[indexY] = {};
+		end
+		for indexX = 1,self.limits.maxIndexX do
+			x = self:getX(indexX);
+			if self:isPointInPolygon(x,y) then
+				category, wakable, costs = self:_evaluationFunction(x, y);
+			else
+				category, wakable, costs = 1, false, {straight=1, diagonal=math.sqrt(2)}
+			end
+			self.map[indexY][indexX] = {category, wakable, costs};
+		end
+	end
+end
+
+function cppf.Grid:getCategoryAt(indexX, indexY)
+	return self.map[indexY][indexX].category;
+end
+
+function cppf.Grid:getNodeAt(indexX, indexY)
+	local category = self:getCategoryAt(indexX, indexY);
+	return cppf.NodeClass:new(indexX, indexY, category);
+end
+
 --===================================================================================
 --***********************************************************************************
 --===================================================================================
@@ -383,6 +522,7 @@ finder.walkable
 finder.allowDiagonal
 finder.heuristic
 --]]
+
 
 --[[
 Horoman Jump Search:

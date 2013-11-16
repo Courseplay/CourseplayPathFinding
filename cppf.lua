@@ -29,6 +29,7 @@ function cppf:loadMap(name)
 	--self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
 	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; --f17
+	self.hjsRoute = { from = { x = 1164, z = 1073 }, to = { x =  1217, z = 974 } }; --f17
 
 	self.tileSize = 5;
 	self.walkable = 0;
@@ -62,6 +63,17 @@ end;
 function cppf:keyEvent(unicode, sym, modifier, isDown)
 end;
 
+local function myEvalFunc(grid, x, y)
+	local category, wakable, costs = 1, true, {straight=1, diagonal=math.sqrt(2)};
+	
+	local hasFruit = courseplay:area_has_fruit(x, y, FruitUtil.fruitTypes["wheat"].index, grid.tileSize/2, grid.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
+	if hasFruit then
+		category = 2;
+	end;
+	
+	return category, wakable, costs;
+end
+
 function cppf:update(dt)
 	if InputBinding.hasEvent(InputBinding.CPPF_HANDLEMARKERCOURSE) then
 		local course = self:findCourseplayCourse(self.testCourse);
@@ -69,7 +81,13 @@ function cppf:update(dt)
 			self:debug("CPPF: course \"" .. self.testCourse .. "\" not found");
 			return;
 		end;
-
+		
+		local hjsGrid = cppf.Grid:new(5, course, 'cx', 'cz');
+		hjsGrid:setEvaluationFunction(myEvalFunc);
+		hjsGrid:evaluate();
+		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');
+		local hjsPath = hjsFinder:getPath(self.hjsRoute.from.x, self.hjsRoute.from.z, self.hjsRoute.to.x, self.hjsRoute.to.z)
+		
 		self.map,self.mapCoords = self:createGridMapFromCourse(course);
 		if self.map == nil or #self.map == 0 then
 			self:debug("CPPF: map for \"" .. self.testCourse .. "\" could not be created");
