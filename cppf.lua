@@ -151,12 +151,12 @@ function cppf:createGridMapFromCourse(course)
 	self.mapData = {};
 	self.mapData.xValues, self.mapData.zValues = {}, {};
 	self.mapData.minX, self.mapData.maxX, self.mapData.minZ, self.mapData.maxZ = 999999, -999999, 999999, -999999;
-	for i,wp in pairs(course.waypoints) do
+	for i,wp in pairs(course.waypoints) do  --actually this is not a good way to go through the waypoints, one should use ipairs. With pairs, there is no guaranty that the waypoints come in the right order (which is defently needed here for Polygon operations!)
 		if wp.cx < self.mapData.minX then self.mapData.minX = wp.cx; end;
 		if wp.cx > self.mapData.maxX then self.mapData.maxX = wp.cx; end;
 		if wp.cz < self.mapData.minZ then self.mapData.minZ = wp.cz; end;
 		if wp.cz > self.mapData.maxZ then self.mapData.maxZ = wp.cz; end;
-		table.insert(self.mapData.xValues, wp.cx);
+		table.insert(self.mapData.xValues, wp.cx);--why just saving it again?
 		table.insert(self.mapData.zValues, wp.cz);
 	end;
 	self.mapData.width, self.mapData.height = self.mapData.maxX - self.mapData.minX, self.mapData.maxZ - self.mapData.minZ;
@@ -347,7 +347,5 @@ end
 	addtocart(t, name, indent)
 	return cart .. autoref
 end;
-
-
 
 addModEventListener(cppf);

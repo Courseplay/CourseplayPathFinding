@@ -349,8 +349,7 @@ function cppf.Pathfinder:new(grid, finderName, walkable)
 	newPathfinder:setWalkable(walkable)
 	newPathfinder:setMode('DIAGONAL')
 	newPathfinder:setHeuristic('MANHATTAN')
-	--newPathfinder.openList = cppf.Heap:new()
-	newPathfinder.openList = cppf.multiHeap:new();
+	newPathfinder.openList = cppf.Heap:new()
 	return newPathfinder
 end
 
@@ -565,79 +564,6 @@ function cppf.Heap:heapify(item)
 end
 
 
---[[===================================================================================--]]
---[[***********************************************************************************--]]
-
-cppf.multiHeap = {}
-
-function cppf.multiHeap:new(template,comp)
-	local mH = {__heap = {}, sort = comp or f_min, maxHeapNr = 0, nrHeaps = 0, size = 0};
-	setmetatable(mH, template or self);
-	self.__index = self;
-	return mH;
-end
-
-function cppf.multiHeap:empty()
-	return (self.size==0);
-end
-
-function cppf.multiHeap:clear()
-	self.__heap = {};
-	self.sort = self.sort or f_min;	
-	self.maxHeapNr = 0;
-	self.nrHeaps = 0;
-	self.size = 0;
-	return self;
-end
-
-function cppf.multiHeap:createHeap(heapNr)
-	if not self.__heap[heapNr] then
-		if maxHeapNr < heapNr then
-			maxHeapNr = heapNr
-		end
-		self.__heap[heapNr] = cppf.Heap:new(nil, self.sort);
-		self.nrHeaps = self.nrHeaps + 1;
-	end
-end
-
-function cppf.multiHeap:push(item, heapNr)
-	if not heapNr then
-		heapNr = 1;
-	end
-	if item then		
-		if not self.__heap[heapNr] then
-			self:createHeap(heapNr);
-		end
-		self.__heap[heapNr]:push(item);
-		self.size = self.size + 1
-	end
-  	return self;
-end
- 
-function cppf.multiHeap:pop(heapNr)
-	local root;
-	if self.size > 0 then
-		if heapNr then
-			if (not self.__heap[heapNr]) or self.__heap[heapNr]:empty() then
-				return;
-			end
-		else
-			heapNr = 1;
-			while ( (not self.__heap[heapNr]) or self.__heap[heapNr]:empty() ) and heapNr <= self.maxHeapNr do
-				heapNr = heapNr + 1;
-			end
-		end	
-			
-		if heapNr <= self.maxHeapNr then
-			root = self.__heap[heapNr]:pop();
-			self.size = self.size - 1;
-		end
-	end
-	return root;
-end
- 
---[[===================================================================================--]]
-
 --===================================================================================
 --***********************************************************************************
 --===================================================================================
@@ -677,7 +603,6 @@ end
 function cppf.Node.__lt(A,B)
 	return (A.f < B.f)
 end
-
 
 
 --===================================================================================
@@ -1009,22 +934,4 @@ function cppf.Finders.JPS(finder, startNode, endNode, toClear, tunnel)
 
 	-- No path found, return nil
 	return nil
-end
-
-
---[[
-Horoman Jump Search:
-Algorithm developed by Roman Hofstetter (horoman) in 2013
-
-This algorithm solves a shortest path problem on a two dimensional discrete map
-where each node belongs to a category and 
-has some straight and diagonal crossing costs assigned which are grater or equal the Euclidean distance.
-The categories are prioritized and the algorithm does not care about the costs of a category as long as the costs of the higher priority categories are minimized.
-
-The algorithm is thought to be used on grid maps with areas of nodes of the same category and costs.
-It is built on the so called Jump Point Search which itself has it seeds in the label correcting algorithm, in particular on the A*-algorithm.
---]]
-
-function cppf.Finders.horomanJumpSearch(finder, startNode, endNode, toClear, tunnel)
-
 end
