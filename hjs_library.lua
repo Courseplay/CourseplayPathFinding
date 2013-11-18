@@ -313,7 +313,7 @@ function cppf.Pathfinder:new(grid, finderName, walkable)
 --	newPathfinder:setWalkable(walkable)
 	newPathfinder:setMode('DIAGONAL')
 	newPathfinder:setHeuristic('EUCLIDIAN')
-	newPathfinder.openList = cppf.multiHeap:new()
+	newPathfinder.openList = cppf.Heap:new()
 	return newPathfinder
 end
 
@@ -638,22 +638,26 @@ function cppf.NodeClass:new(x,y,category)
 end
 
 function cppf.NodeClass.__lt(A,B)
-	return (A.f < B.f)
+	local i = #A.g;
+	while A.g[i] == B.g[i] and i>1 do
+		i = i-1;
+	end
+	return ((i==1 and A.g[i]+A.h < B.g[i]+B.h) or A.g[i] < B.g[i]);
 end
 
-function cppf.NodeClass:isBetterG(g)
+function cppf.NodeClass:isBetterG(g ,h)
 	if #self.g == 0 then
 		return true;
 	elseif #self.g ~= #g then
 		return nil;
 	end
 	
-	local i = #self.g
-	while i>1 and g[i] == self.g[i] do
+	local i = #self.g;
+	while g[i] == self.g[i] and i>1 do
 		i = i-1;
 	end
 	
-	return (g[i] < self.g[i]);
+	return ((h and i==1 and (g[i]+h < self.g[i])) or (g[i] < self.g[i]));
 end
 
 --[[===================================================================================--]]
@@ -809,15 +813,16 @@ local function jump(finder, node, parent, endNode)
 	if node == endNode then return node end
 	
 	-- If the node to be examined has different costs than parent, return this node
-	if finder.grid:moreExpensive(x, y, x-dx, y-dy)~=0 then return node end;
+	if finder.grid:moreExpensive(x, y, x-dx, y-dy)~=0 then print('         1') return node end;
 	
 	-- If we are before a cost change, return node
 	if dx~=0 and dy~=0 and
 		( (finder.grid:isWalkableAt(x+dx,y) and finder.grid:moreExpensive(x, y, x+dx, y)~=0) or 
 		(finder.grid:isWalkableAt(x,y+dy) and finder.grid:moreExpensive(x, y, x, y+dy)~=0) ) then
+		print('         2')
 		return node;
 	end
-	if (finder.grid:isWalkableAt(x+dx,y+dy) and finder.grid:moreExpensive(x, y, x+dx, y+dy)~=0) then return node end;
+	if (finder.grid:isWalkableAt(x+dx,y+dy) and finder.grid:moreExpensive(x, y, x+dx, y+dy)~=0) then print('         3') return node end;
 
 	-- Diagonal search case
 	if dx~=0 and dy~=0 then
@@ -825,6 +830,7 @@ local function jump(finder, node, parent, endNode)
 		-- Current node is a jump point if it is less expensive than one of his leftside/rightside neighbours
 		if (finder.grid:isWalkableAt(x-dx,y+dy) and ((not finder.grid:isWalkableAt(x-dx,y)) or (finder.grid:moreExpensive(x,y,x-dx,y)==2))) or
 		(finder.grid:isWalkableAt(x+dx,y-dy) and ((not finder.grid:isWalkableAt(x,y-dy)) or (finder.grid:moreExpensive(x,y,x,y-dy)==2))) then
+			print('         4')
 			return node
 		end	
 	
@@ -834,6 +840,7 @@ local function jump(finder, node, parent, endNode)
 			-- Current node is a jump point if one of his upside/downside neighbours is forced
 			if (finder.grid:isWalkableAt(x+dx,y+1) and ((not finder.grid:isWalkableAt(x,y+1)) or (finder.grid:moreExpensive(x,y,x,y+1)==2))) or
 			(finder.grid:isWalkableAt(x+dx,y-1) and ((not finder.grid:isWalkableAt(x,y-1)) or (finder.grid:moreExpensive(x,y,x,y-1)==2))) then
+				print('         5')
 				return node
 			end
 		else
@@ -847,6 +854,7 @@ local function jump(finder, node, parent, endNode)
 		if finder.allowDiagonal then
 			if (finder.grid:isWalkableAt(x+1,y+dy) and ((not finder.grid:isWalkableAt(x+1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2))) or
 			(finder.grid:isWalkableAt(x-1,y+dy) and ((not finder.grid:isWalkableAt(x-1,y)) or (finder.grid:moreExpensive(x,y,x-1,y)==2))) then
+				print('         6')
 				return node
 			end
 		else
@@ -857,8 +865,8 @@ local function jump(finder, node, parent, endNode)
 
 	-- Recursive horizontal/vertical search
 	if dx~=0 and dy~=0 then
-		if jump(finder,finder.grid:getNodeAt(x+dx,y),node,endNode) then return node end
-		if jump(finder,finder.grid:getNodeAt(x,y+dy),node,endNode) then return node end
+		if jump(finder,finder.grid:getNodeAt(x+dx,y),node,endNode) then print('         7') return node end
+		if jump(finder,finder.grid:getNodeAt(x,y+dy),node,endNode) then print('         8') return node end
 	end
 
 	-- Recursive diagonal search
@@ -876,8 +884,15 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 	for i = #neighbours,1,-1 do
 		local skip = false;
 		local neighbour = neighbours[i];
+		print(string.format('   neighbour: x,y: %d,%d / cat: %d', neighbour.x, neighbour.y, neighbour.category));
+		
 		local jumpNode = jump(finder,neighbour,node,endNode);
-
+		if jumpNode then
+			print(string.format('      jump: x,y: %d,%d / cat: %d', jumpNode.x, jumpNode.y, jumpNode.category));
+		else
+			print('      jump: none');
+		end
+		
 		-- : in case a diagonal jump point was found in straight mode, skip it.
 		if jumpNode and not finder.allowDiagonal then
 			if ((jumpNode.x ~= node.x) and (jumpNode.y ~= node.y)) then skip = true end
@@ -887,17 +902,16 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 		if jumpNode and not skip then
 			-- Update the jump node
 			local newG = getG(finder, jumpNode, node);
-			if jumpNode:isBetterG(newG) then --todo: compare with total costs, to keep openList small
+			jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y));
+			if jumpNode:isBetterG(newG) and endNode:isBetterG(newG, jumpNode.h) then
 				toClear[jumpNode] = true; -- Records this node to reset its properties later.
 				jumpNode.g = newG;
-				jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y));
-				jumpNode.f = jumpNode.g[jumpNode.category]+jumpNode.h;
 				jumpNode.parent = node;
 				if not jumpNode.inBin then
-					finder.openList:push(jumpNode, jumpNode.catgory);
+					finder.openList:push(jumpNode);  --, jumpNode.category);
 					jumpNode.inBin = true;
 				else
-					finder.openList:heapify(jumpNode, jumpNode.category);
+					finder.openList:heapify(jumpNode); --, jumpNode.category);
 				end
 			end
 		end -- if not skip
@@ -912,7 +926,7 @@ function cppf.Finders.HJS(finder, startNode, endNode, toClear, tunnel)
 		startNode.g[i] = 0; -- costs from startNode
 	end
 	finder.openList:clear();
-	finder.openList:push(startNode, startNode.category);
+	finder.openList:push(startNode);   --, startNode.category);
 	startNode.inBin = true;
 	toClear[startNode] = true;
 
@@ -921,6 +935,7 @@ function cppf.Finders.HJS(finder, startNode, endNode, toClear, tunnel)
 		-- Pops the lowest F-cost node, moves it in the closed list
 		node = finder.openList:pop();
 		node.inBin = false;
+		print(string.format('work on node: x,y: %d,%d / cat: %d / Bin: %d', node.x, node.y, node.category, finder.openList.size));
 		
 		-- If the popped node is the endNode, return it
 		if node == endNode then

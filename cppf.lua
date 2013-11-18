@@ -66,7 +66,7 @@ end;
 local function myEvalFunc(grid, x, y)
 	local category, wakable, costs = 1, true, 1;
 	
-	local hasFruit = courseplay:area_has_fruit(x, y, nil, grid.tileSize/2, grid.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
+	local hasFruit = courseplay:area_has_fruit(x, y, nil, grid.tileSize/2, grid.tileSize/2);
 	if hasFruit then
 		category = 2;
 	end;
@@ -90,40 +90,23 @@ function cppf:update(dt)
 		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');		
 		local hjsPath = hjsFinder:getPath(self.hjsRoute.from.x, self.hjsRoute.from.z, self.hjsRoute.to.x, self.hjsRoute.to.z)
 		
---		self.map,self.mapCoords = self:createGridMapFromCourse(course);
---		if self.map == nil or #self.map == 0 then
---			self:debug("CPPF: map for \"" .. self.testCourse .. "\" could not be created");
---			return;
---		end;
---
---		local grid = cppf.Grid:new(self.map);
---		local myFinder = cppf.Pathfinder:new(grid, 'JPS', 0);
---
---		-- Calculates the path, and its length
---		local path = myFinder:getPath(self.route.from.x, self.route.from.z, self.route.to.x, self.route.to.z)
 		local path = hjsPath;
 		if path then
 			self.displayPathNodes = {};
 
 			print(('Path found! Length: %.2f'):format(path:getLength()))
 			for node, count in path:nodes() do
-				--print(('Step: %d - x: %d - y: %d'):format(count, node:getX(), node:getY()))
 				print(('Step: %d - x,y=%d,%d - cat=%d'):format(count, node.x, node.y, node.category))
-				--self.map[node.y][node.x] = count;
 				
-				-- todo: fix
---				self.map[node.y][node.x] = self.pathPointsVis[count];
+				node.letter = self.pathPointsVis[count];
 
 				local p = {};
 				p.x = hjsFinder.grid:getX(node.x);
 				p.z = hjsFinder.grid:getY(node.y);
---				p.x = self.mapCoords[node.y][node.x].x;
---				p.z = self.mapCoords[node.y][node.x].z;
 				p.y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, p.x, 300, p.z) + 3;
 				self.displayPathNodes[count] = p;
 			end
-			-- todo fix
---			self:debug(self:printMap(self.map));
+			self:debug(self:printMap(hjsGrid));
 		else
 			print('no path found!')
 		end
@@ -174,71 +157,22 @@ function cppf:drawDebugPoints()
 	end;
 end;
 
-function cppf:createGridMapFromCourse(course)
-	self.mapData = {};
-	self.mapData.xValues, self.mapData.zValues = {}, {};
-	self.mapData.minX, self.mapData.maxX, self.mapData.minZ, self.mapData.maxZ = 999999, -999999, 999999, -999999;
-	for i,wp in pairs(course.waypoints) do  --actually this is not a good way to go through the waypoints, one should use ipairs. With pairs, there is no guaranty that the waypoints come in the right order (which is defently needed here for Polygon operations!)
-		if wp.cx < self.mapData.minX then self.mapData.minX = wp.cx; end;
-		if wp.cx > self.mapData.maxX then self.mapData.maxX = wp.cx; end;
-		if wp.cz < self.mapData.minZ then self.mapData.minZ = wp.cz; end;
-		if wp.cz > self.mapData.maxZ then self.mapData.maxZ = wp.cz; end;
-		table.insert(self.mapData.xValues, wp.cx);--why just saving it again?
-		table.insert(self.mapData.zValues, wp.cz);
-	end;
-	self.mapData.width, self.mapData.height = self.mapData.maxX - self.mapData.minX, self.mapData.maxZ - self.mapData.minZ;
-	self:debug(string.format("minX,maxX,width=%s,%s,%s / minZ,maxZ,height=%s,%s,%s", tostring(self.mapData.minX),tostring(self.mapData.maxX),tostring(self.mapData.width),tostring(self.mapData.minZ),tostring(self.mapData.maxZ),tostring(self.mapData.height)));
-	self.mapData.numXtilesNeeded = math.ceil(self.mapData.width/self.tileSize);
-	self.mapData.numZtilesNeeded = math.ceil(self.mapData.height/self.tileSize);
-	self:debug(string.format("numXtilesNeeded, numZtilesNeeded = %s, %s", tostring(self.mapData.numXtilesNeeded),tostring(self.mapData.numZtilesNeeded)));
-
-	local map = {};
-	local mapCoords = {};
-	for line=1,self.mapData.numZtilesNeeded do
-		local z = self.mapData.minZ - self.tileSize/2 + (line*self.tileSize);
-		if line == self.mapData.numZtilesNeeded then
-			local prevZ = (self.mapData.minZ - self.tileSize/2 + ((line-1)*self.tileSize));
-			z = prevZ + (self.mapData.maxZ - prevZ)/2;
-		end;
-		map[line] = {};
-		mapCoords[line] = {};
-
-		for col=1,self.mapData.numXtilesNeeded do
-			local x = self.mapData.minX - self.tileSize/2 + (col*self.tileSize);
-			if col == self.mapData.numXtilesNeeded then
-				local prevX = (self.mapData.minX - self.tileSize/2 + ((col-1)*self.tileSize));
-				x = prevX + (self.mapData.maxX - prevX)/2;
-			end;
-			local point = { x = x, z = z };
-			mapCoords[line][col] = point;
-
-			--WALKABLE vs. UNWALKABLE
-			map[line][col] = self.walkable;
-			local isInPoly = cppf:pointInPolygon_v2(course.waypoints, self.mapData.xValues, self.mapData.zValues, x, z);
-			local hasFruit = courseplay:area_has_fruit(x, z, FruitUtil.fruitTypes["wheat"].index, self.tileSize/2, self.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
-			if not isInPoly or hasFruit then
-				map[line][col] = self.unwalkable;
-			end;
-		end;
-	end;
-	--self:debug(self:tableShow(map, self.testCourse .. ": map"));
-	--self:debug(self:tableShow(mapCoords, self.testCourse .. ": mapCoords"));
-	--self:debug(self:printMap(map));
-
-	return map, mapCoords;
-end;
-
-function cppf:printMap(map)
+function cppf:printMap(grid)
+	local map = grid.map;
+	local node;
 	local str = "RESULTMAP = {\r";
 	for z=1,#map do
 		str = str .. "\t{";
-		for x=1,#map[z] do
-			if map[z][x] == self.walkable then
-				str = str .. " ";
-			elseif map[z][x] == self.unwalkable then
-				str = str .. "x";
+		for x=1,#map[z] do	
+			if grid:isWalkableAt(x, z) then
+				node = grid:getNodeAt(x,z);
+				if node.letter then
+					str = str .. tostring(node.letter);
+				else
+					str = str .. tostring(grid:getCategoryAt(x,z));
+				end				 
 			else
-				str = str .. map[z][x];
+				str = str .. "x";
 			end;
 
 			if x < #map[z] then
@@ -260,32 +194,6 @@ function cppf:findCourseplayCourse(name)
 		end;
 	end;
 	return nil;
-end;
-
-function cppf:pointInPolygon_v2(polygon, xValues, zValues, x, z) --@src: http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-	--nvert: Number of vertices in the polygon. Whether to repeat the first vertex at the end.
-	--vertx, verty: Arrays containing the x- and y-coordinates of the polygon's vertices.
-	--testx, testy: X- and y-coordinate of the test point.
-
-	local nvert = #polygon;
-	local vertx, verty = xValues, zValues;
-	local testx, testy = x, z;
-
-	local i, j;
-	local c = false;
-
-	for i=1, nvert do
-		if i == 1 then
-			j = nvert;
-		else
-			j = i - 1;
-		end;
-
-		if ((verty[i]>testy) ~= (verty[j]>testy)) and (testx < (vertx[j]-vertx[i]) * (testy-verty[i]) / (verty[j]-verty[i]) + vertx[i]) then
-			c = not c;
-		end;
-	end;
-	return c;
 end;
 
 function cppf:rgba(r, g, b, a)
