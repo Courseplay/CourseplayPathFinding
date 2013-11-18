@@ -64,7 +64,7 @@ function cppf:keyEvent(unicode, sym, modifier, isDown)
 end;
 
 local function myEvalFunc(grid, x, y)
-	local category, wakable, costs = 1, true, {straight=1, diagonal=math.sqrt(2)};
+	local category, wakable, costs = 1, true, 1;
 	
 	local hasFruit = courseplay:area_has_fruit(x, y, FruitUtil.fruitTypes["wheat"].index, grid.tileSize/2, grid.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
 	if hasFruit then
@@ -82,23 +82,23 @@ function cppf:update(dt)
 			return;
 		end;
 		
-		local hjsGrid = cppf.Grid:new(5, course, 'cx', 'cz');
+		local hjsGrid = cppf.Grid:new(5, course.waypoints, 'cx', 'cz');
 		hjsGrid:setEvaluationFunction(myEvalFunc);
 		hjsGrid:evaluate();
 		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');
 		local hjsPath = hjsFinder:getPath(self.hjsRoute.from.x, self.hjsRoute.from.z, self.hjsRoute.to.x, self.hjsRoute.to.z)
 		
-		self.map,self.mapCoords = self:createGridMapFromCourse(course);
-		if self.map == nil or #self.map == 0 then
-			self:debug("CPPF: map for \"" .. self.testCourse .. "\" could not be created");
-			return;
-		end;
-
-		local grid = cppf.Grid:new(self.map);
-		local myFinder = cppf.Pathfinder:new(grid, 'JPS', 0);
-
-		-- Calculates the path, and its length
-		local path = myFinder:getPath(self.route.from.x, self.route.from.z, self.route.to.x, self.route.to.z)
+--		self.map,self.mapCoords = self:createGridMapFromCourse(course);
+--		if self.map == nil or #self.map == 0 then
+--			self:debug("CPPF: map for \"" .. self.testCourse .. "\" could not be created");
+--			return;
+--		end;
+--
+--		local grid = cppf.Grid:new(self.map);
+--		local myFinder = cppf.Pathfinder:new(grid, 'JPS', 0);
+--
+--		-- Calculates the path, and its length
+--		local path = myFinder:getPath(self.route.from.x, self.route.from.z, self.route.to.x, self.route.to.z)
 		if path then
 			self.displayPathNodes = {};
 

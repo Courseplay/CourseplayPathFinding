@@ -2,7 +2,7 @@
 
 -- Standard evaluation function
 local function evalMapAt(x,y)
-	return 1, true, {straight=1, diagonal=math.sqrt(2)};
+	return 1, true, 1;
 end
 
 --[[ Horoman's Grid:
@@ -13,7 +13,7 @@ grid.limits.maxY
 grid.limits.maxIndexX
 grid.limits.maxIndexY
 grid.tileSize
-grid.map[][] = {category, walkable, costs={straight, diagonal}}
+grid.map[][] = {category, walkable, costs}
 grid._evaluationFunction
 grid.polygon = {points, xName, yName}
 --]]
@@ -34,7 +34,7 @@ cppf.Grid.diagonalOffsets = {
 }
 
 function cppf.Grid:new(tileSize, polygon, xName, yName)
-	local newGrid = {polygon={}, map={}, limits={}, _evaluationFunction=evalMapAt};
+	local newGrid = {polygon={}, map={}, nodes={}, limits={}, _evaluationFunction=evalMapAt};
 	setmetatable(newGrid, self);
 	--self.__index = self;
 	
@@ -97,6 +97,10 @@ function cppf.Grid:findLimits()
 	self.limits.maxIndexY = math.ceil((maxY-minY)/self.tileSize);
 end
 
+function cppf.Grid:isInRange(indexX, indexY)
+	return (indexX < 1 or indexX > self.limits.maxIndexX) or (indexY < 1 or indexY > self.limits.maxIndexY);
+end
+
 function cppf.Grid:isPointInPolygon(x,y)
 --@src: http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
 		
@@ -133,9 +137,10 @@ function cppf.Grid:evaluate()
 			if self:isPointInPolygon(x,y) then
 				category, wakable, costs = self:_evaluationFunction(x, y);
 			else
-				category, wakable, costs = 1, false, {straight=1, diagonal=math.sqrt(2)}
+				category, wakable, costs = 1, false, 1;
 			end
 			self.map[indexY][indexX] = {category, wakable, costs};
+			self.categoryMax = not self.categroyMax and category or (self.categoryMax < category and category or self.categoryMax);
 		end
 	end
 end
@@ -144,9 +149,49 @@ function cppf.Grid:getCategoryAt(indexX, indexY)
 	return self.map[indexY][indexX].category;
 end
 
+function cppf.Grid:isWalkableAt(indexX, indexY)
+	if self:isInRange(indexX, indexY) then
+		return self.map[indexY][indexX].walkable;
+	else
+		return false;
+	end
+end
+
+function cppf.Grid:getCostsAt(indexX, indexY)
+	if self:isInRange(indexX, indexY) then
+		return self.map[indexY][indexX].costs;
+	end
+end
+
+function cppf.Grid:moreExpensive(indexX1, indexY1, indexX2, indexY2)
+	local result = 0;
+	if self.map[indexY1][indexX1].category > self.map[indexY2][indexX2].category then
+		result = 1;
+	elseif self.map[indexY1][indexX1].category < self.map[indexY2][indexX2].category then
+		result = 2;
+	else
+		if self.map[indexY1][indexX1].costs > self.map[indexY2][indexX2].costs then
+			result = 1;
+		elseif self.map[indexY1][indexX1].costs < self.map[indexY2][indexX2].costs then
+			result = 2;
+		end
+	end
+	return result;
+end
+
 function cppf.Grid:getNodeAt(indexX, indexY)
-	local category = self:getCategoryAt(indexX, indexY);
-	return cppf.NodeClass:new(indexX, indexY, category);
+	local node = nil;
+	if self:isInRange(indexX, indexY) then
+		if not self.nodes[indexY] then
+			self.nodes[indexY] = {};
+		end
+		if not self.nodes[indexY][indexX] then
+			local category = self:getCategoryAt(indexX, indexY);
+			self.nodes[indexY][indexX] = cppf.NodeClass:new(indexX, indexY, category);
+		end		
+		node = self.nodes[indexY][indexX];
+	end
+	return node;
 end
 
 function cppf.Grid:getNeighbours(node, allowDiagonal, tunnel)
@@ -315,7 +360,7 @@ function cppf.Pathfinder:version()
 end
 
 function cppf.Pathfinder:getPath(startX, startY, endX, endY, tunnel)
---	reset();
+	reset();
 	local startIndexX, startIndexY = self.grid:getIndexAt(startX, startY);
 	local endIndexX, endIndexY = self.grid:getIndexAt(endX, endY);
 	
@@ -520,6 +565,10 @@ function cppf.multiHeap:pop(heapNr)
 	return root;
 end
 
+function cppf.multiHeap:heapify(item, heapNr)
+	self._heap[heapNr]:heapify(item);
+end
+
 --===================================================================================
 --***********************************************************************************
 --===================================================================================
@@ -560,6 +609,21 @@ function cppf.NodeClass.__lt(A,B)
 	return (A.f < B.f)
 end
 
+function cppf.NodeClass:isBetterG(g)
+	if #self.g == 0 then
+		return true;
+	elseif #self.g ~= #g then
+		return nil;
+	end
+	
+	local i = #self.g
+	while i>1 and g[i] == self.g[i] do
+		i = i-1;
+	end
+	
+	return (g[i] < self.g[i]);
+end
+
 --[[===================================================================================--]]
 
 --[[ Yonaba's finder:
@@ -577,14 +641,40 @@ Algorithm developed by Roman Hofstetter (horoman) in 2013
 
 This algorithm solves a shortest path problem on a two dimensional discrete map
 where each node belongs to a category and 
-has some straight and diagonal crossing costs assigned which are grater or equal the Euclidean distance.
+has some crossing costs assigned which are grater or equal the Euclidean distance.
 The categories are prioritized and the algorithm does not care about the costs of a category as long as the costs of the higher priority categories are minimized.
 
 The algorithm is thought to be used on grid maps with areas of nodes of the same category and costs.
 It is built on the so called Jump Point Search which itself has it seeds in the label correcting algorithm, in particular on the A*-algorithm.
 --]]
 
-local function findNeighbours(finder,node, tunnel)
+local function getG(finder, node, parent)
+	local x, y = node.x, node.y;
+	local dx, dy = node.x-parent.x, node.y-parent.y;
+	local absX, absY = math.abs(dx), math.abs(dy);
+	local costs = finder.grid:getCostsAt(x,y);
+	local distance = ( (absX == absY) and sqrt2*absX ) or ( (absY==0) and absX) or (absX==0 and absY); --EUCLIDIAN distance
+
+	local g = {};
+	for i = 1,#parent.g do
+		g[i] = parent.g[i];
+	end
+	
+	if finder.grid:moreExpensive(x,y,x-dx,y-dy) == 0 then
+		g[node.category] = parent.g[node.category] + distance*costs;
+	elseif absX==0 and abxY==1 or abxX==1 and abxY==0 or abxX == 1 and abxY==1 then
+		local costs1 = finder.grid:getCostsAt(x-dx,y-dy);
+		g[node.category] = parent.g[node.category] + distance/2*costs;
+		g[parent.category] = parent.g[parent.category] + distance/2*costs1;
+	else
+	-- should never happen, to test:
+		print('Fatal error in hjs ;-)');
+	end
+	
+	return g;
+end
+
+local function findNeighbours(finder, node, tunnel)
 	if node.parent then
 	  local neighbours = {}
 	  local x,y = node.x, node.y
@@ -598,11 +688,11 @@ local function findNeighbours(finder,node, tunnel)
 		local walkY, walkX
 
 		-- Natural neighbours
-		if finder.grid:isWalkableAt(x,y+dy,finder.walkable) then
+		if finder.grid:isWalkableAt(x,y+dy) then
 		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
 		  walkY = true
 		end
-		if finder.grid:isWalkableAt(x+dx,y,finder.walkable) then
+		if finder.grid:isWalkableAt(x+dx,y) then
 		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
 		  walkX = true
 		end
@@ -611,10 +701,10 @@ local function findNeighbours(finder,node, tunnel)
 		end
 
 		-- Forced neighbours
-		if (not finder.grid:isWalkableAt(x-dx,y,finder.walkable)) and walkY then
+		if (not finder.grid:isWalkableAt(x-dx,y)) and walkY then
 		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x-dx,y+dy)
 		end
-		if (not finder.grid:isWalkableAt(x,y-dy,finder.walkable)) and walkX then
+		if (not finder.grid:isWalkableAt(x,y-dy)) and walkX then
 		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-dy)
 		end
 
@@ -622,45 +712,45 @@ local function findNeighbours(finder,node, tunnel)
 		-- Move along Y-axis case
 		if dx==0 then
 		  local walkY
-		  if finder.grid:isWalkableAt(x,y+dy,finder.walkable) then
+		  if finder.grid:isWalkableAt(x,y+dy) then
 			neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
 
 			-- Forced neighbours are left and right ahead along Y
-			if (not finder.grid:isWalkableAt(x+1,y,finder.walkable)) then
+			if (not finder.grid:isWalkableAt(x+1,y)) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y+dy)
 			end
-			if (not finder.grid:isWalkableAt(x-1,y,finder.walkable)) then
+			if (not finder.grid:isWalkableAt(x-1,y)) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y+dy)
 			end
 		  end
 		  -- In case diagonal moves are forbidden : Needs to be optimized
 		  if not finder.allowDiagonal then
-			if finder.grid:isWalkableAt(x+1,y,finder.walkable) then
+			if finder.grid:isWalkableAt(x+1,y) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y)
 			end
-			if finder.grid:isWalkableAt(x-1,y,finder.walkable)
+			if finder.grid:isWalkableAt(x-1,y)
 			  then neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y)
 			end
 		  end
 		else
 		-- Move along X-axis case
-		  if finder.grid:isWalkableAt(x+dx,y,finder.walkable) then
+		  if finder.grid:isWalkableAt(x+dx,y) then
 			neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
 
 			-- Forced neighbours are up and down ahead along X
-			if (not finder.grid:isWalkableAt(x,y+1,finder.walkable)) then
+			if (not finder.grid:isWalkableAt(x,y+1)) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y+1)
 			end
-			if (not finder.grid:isWalkableAt(x,y-1,finder.walkable)) then
+			if (not finder.grid:isWalkableAt(x,y-1)) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-1)
 			end
 		  end
 		  -- : In case diagonal moves are forbidden
 		  if not finder.allowDiagonal then
-			if finder.grid:isWalkableAt(x,y+1,finder.walkable) then
+			if finder.grid:isWalkableAt(x,y+1) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+1)
 			end
-			if finder.grid:isWalkableAt(x,y-1,finder.walkable) then
+			if finder.grid:isWalkableAt(x,y-1) then
 			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y-1)
 			end
 		  end
@@ -670,7 +760,7 @@ local function findNeighbours(finder,node, tunnel)
 	end
 
 	-- Node do not have parent, we return all neighbouring nodes
-	return finder.grid:getNeighbours(node, finder.walkable, finder.allowDiagonal, tunnel)
+	return finder.grid:getNeighbours(node, finder.allowDiagonal, tunnel);
 end
 
 local function jump(finder, node, parent, endNode)
@@ -680,44 +770,47 @@ local function jump(finder, node, parent, endNode)
 	local dx, dy = x - parent.x,y - parent.y
 
 	-- If the node to be examined is unwalkable, return nil
-	if not finder.grid:isWalkableAt(x,y,finder.walkable) then return end
+	if not finder.grid:isWalkableAt(x,y) then return end
 
 	-- If the node to be examined is the endNode, return this node
 	if node == endNode then return node end
+	
+	-- If the node to be examined has different costs than parent, return this node
+	if finder.grid:moreExpensive(x, y, x-dx, y-dy)~=0 then return node end;
 
 	-- Diagonal search case
 	if dx~=0 and dy~=0 then
 		-- Current node is a jump point if one of his leftside/rightside neighbours ahead is forced
-		if (finder.grid:isWalkableAt(x-dx,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x-dx,y,finder.walkable))) or
-		(finder.grid:isWalkableAt(x+dx,y-dy,finder.walkable) and (not finder.grid:isWalkableAt(x,y-dy,finder.walkable))) then
+		-- Current node is a jump point if it is less expensive than one of his leftside/rightside neighbours
+		if (finder.grid:isWalkableAt(x-dx,y+dy) and ((not finder.grid:isWalkableAt(x-dx,y)) or (finder.grid:moreExpensive(x,y,x-dx,y)==2))) or
+		(finder.grid:isWalkableAt(x+dx,y-dy) and ((not finder.grid:isWalkableAt(x,y-dy)) or (finder.grid:moreExpensive(x,y,x,y-dy)==2))) then
 			return node
-		end
-	else
-
-		-- Search along X-axis case
-		if dx~=0 then
-			if finder.allowDiagonal then
-				-- Current node is a jump point if one of his upside/downside neighbours is forced
-				if (finder.grid:isWalkableAt(x+dx,y+1,finder.walkable) and (not finder.grid:isWalkableAt(x,y+1,finder.walkable))) or
-				(finder.grid:isWalkableAt(x+dx,y-1,finder.walkable) and (not finder.grid:isWalkableAt(x,y-1,finder.walkable))) then
-					return node
-				end
-			else
-				-- : in case diagonal moves are forbidden
-				if finder.grid:isWalkableAt(x+1,y,finder.walkable) or finder.grid:isWalkableAt(x-1,y,finder.walkable) then return node end
+		end	
+	
+	-- Search along X-axis case
+	elseif dx~=0 then
+		if finder.allowDiagonal then
+			-- Current node is a jump point if one of his upside/downside neighbours is forced
+			if (finder.grid:isWalkableAt(x+dx,y+1) and ((not finder.grid:isWalkableAt(x,y+1)) or (finder.grid:moreExpensive(x,y,x,y+1)==2))) or
+			(finder.grid:isWalkableAt(x+dx,y-1) and ((not finder.grid:isWalkableAt(x,y-1)) or (finder.grid:moreExpenxive(x,y,x,y-1)==2))) then
+				return node
 			end
 		else
-			-- Search along Y-axis case
-			-- Current node is a jump point if one of his leftside/rightside neighbours is forced
-			if finder.allowDiagonal then
-				if (finder.grid:isWalkableAt(x+1,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x+1,y,finder.walkable))) or
-				(finder.grid:isWalkableAt(x-1,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x-1,y,finder.walkable))) then
-					return node
-				end
-			else
-				-- : in case diagonal moves are forbidden
-				if finder.grid:isWalkableAt(x,y+1,finder.walkable) or finder.grid:isWalkableAt(x,y-1,finder.walkable) then return node end
+			-- : in case diagonal moves are forbidden
+			if finder.grid:isWalkableAt(x+1,y,finder.walkable) or finder.grid:isWalkableAt(x-1,y,finder.walkable) then return node end	--todo: does not make sense to me. shouldn't it be y+1 instead of x+1?
+		end
+		
+	-- Search along Y-axis case
+	else		
+		-- Current node is a jump point if one of his leftside/rightside neighbours is forced
+		if finder.allowDiagonal then
+			if (finder.grid:isWalkableAt(x+1,y+dy) and ((not finder.grid:isWalkableAt(x+1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2))) or
+			(finder.grid:isWalkableAt(x-1,y+dy) and ((not finder.grid:isWalkableAt(x-1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2))) then
+				return node
 			end
+		else
+			-- : in case diagonal moves are forbidden
+			if finder.grid:isWalkableAt(x,y+1,finder.walkable) or finder.grid:isWalkableAt(x,y-1,finder.walkable) then return node end	--todo: see todo above
 		end
 	end
 
@@ -729,8 +822,8 @@ local function jump(finder, node, parent, endNode)
 
 	-- Recursive diagonal search
 	if finder.allowDiagonal then
-		if finder.grid:isWalkableAt(x+dx,y,finder.walkable) or finder.grid:isWalkableAt(x,y+dy,finder.walkable) then
-			return jump(finder,finder.grid:getNodeAt(x+dx,y+dy),node,endNode)
+		if finder.grid:isWalkableAt(x+dx,y) or finder.grid:isWalkableAt(x,y+dy) then
+			return jump(finder,finder.grid:getNodeAt(x+dx,y+dy),node,endNode) -- in case of dy==0 this will cause a horizontal search. analog with dx==0 for vertical. where is horizontal/vertical recursion in case of diagonal search is disallowed???
 		end
 	end
 end
@@ -738,76 +831,63 @@ end
 local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 	-- Gets the valid neighbours of the given node
 	-- Looks for a jump point in the direction of each neighbour
-	local neighbours = findNeighbours(finder,node, tunnel)
+	local neighbours = findNeighbours(finder,node, tunnel);
 	for i = #neighbours,1,-1 do
-		local skip = false
-		local neighbour = neighbours[i]
-		local jumpNode = jump(finder,neighbour,node,endNode)
+		local skip = false;
+		local neighbour = neighbours[i];
+		local jumpNode = jump(finder,neighbour,node,endNode);
 
 		-- : in case a diagonal jump point was found in straight mode, skip it.
 		if jumpNode and not finder.allowDiagonal then
 			if ((jumpNode.x ~= node.x) and (jumpNode.y ~= node.y)) then skip = true end
 		end
 
-		--[[
-		-- Hacky trick to discard "tunneling" in diagonal mode search for the first step
-		if jumpNode and finder.allowDiagonal and not step_first then
-			if jumpNode.x == endNode.x and jumpNode.y == endNode.y then
-				step_first = true
-				if not skip then
-					skip = testFirstStep(finder, jumpNode, node)
-				end
-			end
-		end
-		--]]
-
 		-- Performs regular A-star on a set of jump points
 		if jumpNode and not skip then
-			-- Update the jump node and move it in the closed list if it wasn't there
-			if not jumpNode.closed then
-				local extraG = cppf.Heuristics.EUCLIDIAN(jumpNode.x-node.x,jumpNode.y-node.y)
-				local newG = node.g + extraG
-				if not jumpNode.opened or newG < jumpNode.g then
-					toClear[jumpNode] = true -- Records this node to reset its properties later.
-					jumpNode.g = newG
-					jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y))
-					jumpNode.f = jumpNode.g+jumpNode.h
-					jumpNode.parent = node
-					if not jumpNode.opened then
-						finder.openList:push(jumpNode)
-						jumpNode.opened = true
-						if not step_first then step_first = true end
-					else
-						finder.openList:heapify(jumpNode)
-					end
+			-- Update the jump node
+			local newG = getG(finder, jumpNode, node);
+			if jumpNode:isBetterG(newG) then --todo: compare with total costs, to keep openList small
+				toClear[jumpNode] = true; -- Records this node to reset its properties later.
+				jumpNode.g = newG;
+				jumpNode.h = jumpNode.h or (finder.heuristic(jumpNode.x-endNode.x,jumpNode.y-endNode.y));
+				jumpNode.f = jumpNode.g[jumpNode.category]+jumpNode.h;
+				jumpNode.parent = node;
+				if not jumpNode.inBin then
+					finder.openList:push(jumpNode, jumpNode.catgory);
+					jumpNode.inBin = true;
+				else
+					finder.openList:heapify(jumpNode, jumpNode.category);
 				end
 			end
-		end
+		end -- if not skip
 	end
 end
 
 function cppf.Finders.HJS(finder, startNode, endNode, toClear, tunnel)
-	step_first = false
-	startNode.g, startNode.f = 0,0
-	finder.openList:clear()
-	finder.openList:push(startNode)
-	startNode.opened = true
-	toClear[startNode] = true
+	startNode.f = 0; -- not true but does not matter for startNode
+	for i = 1,finder.grid.categoryMax do
+		startNode.g[i] = 0; -- costs from startNode
+	end
+	finder.openList:clear();
+	finder.openList:push(startNode, startNode.category);
+	startNode.inBin = true;
+	toClear[startNode] = true;
 
-	local node
+	local node;
 	while not finder.openList:empty() do
 		-- Pops the lowest F-cost node, moves it in the closed list
-		node = finder.openList:pop()
-		node.closed = true
+		node = finder.openList:pop();
+		node.inBin = false;
+		
 		-- If the popped node is the endNode, return it
 		if node == endNode then
-			return node
+			return node;
 		end
 		-- otherwise, identify successors of the popped node
-		identifySuccessors(finder, node, endNode, toClear, tunnel)
+		identifySuccessors(finder, node, endNode, toClear, tunnel);
 	end
 
 	-- No path found, return nil
-	return nil
+	return nil;
 end
 
