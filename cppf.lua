@@ -21,7 +21,7 @@ function cppf:loadMap(name)
 	end;
 
 	--self:loadFilesInDir(cppf.modDir .. "pathfindingClasses");
-	source(cppf.modDir .. "pathfindingLibrary.lua");
+	source(cppf.modDir .. "hjs_library.lua");
 
 	self.pathPointsVis = { "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","X","Y","Z" }
 	self.testCourse = "f17";
@@ -29,7 +29,7 @@ function cppf:loadMap(name)
 	--self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
 	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; --f17
-	self.hjsRoute = { from = { x = 1164, z = 1073 }, to = { x =  1217, z = 974 } }; --f17
+	self.hjsRoute = { from = { x = 140, z = -145 }, to = { x =  200, z = 0 } }; --f17
 
 	self.tileSize = 5;
 	self.walkable = 0;
@@ -85,7 +85,9 @@ function cppf:update(dt)
 		local hjsGrid = cppf.Grid:new(5, course.waypoints, 'cx', 'cz');
 		hjsGrid:setEvaluationFunction(myEvalFunc);
 		hjsGrid:evaluate();
-		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');
+		print('Ecke 1: ' .. tostring(hjsGrid:getX(1)) .. ' / ' .. tostring(hjsGrid:getY(1)) );
+		print('Ecke 3: ' .. tostring(hjsGrid:getX(#hjsGrid.map[1])) .. ' / ' .. tostring(hjsGrid:getY(#hjsGrid.map)) );
+		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');		
 		local hjsPath = hjsFinder:getPath(self.hjsRoute.from.x, self.hjsRoute.from.z, self.hjsRoute.to.x, self.hjsRoute.to.z)
 		
 --		self.map,self.mapCoords = self:createGridMapFromCourse(course);
@@ -99,6 +101,7 @@ function cppf:update(dt)
 --
 --		-- Calculates the path, and its length
 --		local path = myFinder:getPath(self.route.from.x, self.route.from.z, self.route.to.x, self.route.to.z)
+		local path = hjsPath;
 		if path then
 			self.displayPathNodes = {};
 
@@ -107,16 +110,22 @@ function cppf:update(dt)
 				--print(('Step: %d - x: %d - y: %d'):format(count, node:getX(), node:getY()))
 				print(('Step: %d - x,y=%d,%d'):format(count, node.x, node.y))
 				--self.map[node.y][node.x] = count;
-				self.map[node.y][node.x] = self.pathPointsVis[count];
+				
+				-- todo: fix
+--				self.map[node.y][node.x] = self.pathPointsVis[count];
 
 				local p = {};
-				p.x = self.mapCoords[node.y][node.x].x;
-				p.z = self.mapCoords[node.y][node.x].z;
+				p.x = hjsFinder.grid:getX(node.x);
+				p.z = hjsFinder.grid:getY(node.y);
+--				p.x = self.mapCoords[node.y][node.x].x;
+--				p.z = self.mapCoords[node.y][node.x].z;
 				p.y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, p.x, 300, p.z) + 3;
 				self.displayPathNodes[count] = p;
 			end
-			self:debug(self:printMap(self.map));
-
+			-- todo fix
+--			self:debug(self:printMap(self.map));
+		else
+			print('no path found!')
 		end
 	end;
 

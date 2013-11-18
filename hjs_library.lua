@@ -80,7 +80,7 @@ function cppf.Grid:findLimits()
 	local minY, maxY
 	local x, y
 
-	for k, point in pairs(self.polygon.points)
+	for k, point in pairs(self.polygon.points) do
 		x = point[self.polygon.xName];
 		y = point[self.polygon.yName];
 		minX = not minX and x or (x<minX and x or minX)
@@ -98,7 +98,7 @@ function cppf.Grid:findLimits()
 end
 
 function cppf.Grid:isInRange(indexX, indexY)
-	return (indexX < 1 or indexX > self.limits.maxIndexX) or (indexY < 1 or indexY > self.limits.maxIndexY);
+	return not ( (indexX < 1 or indexX > self.limits.maxIndexX) or (indexY < 1 or indexY > self.limits.maxIndexY) );
 end
 
 function cppf.Grid:isPointInPolygon(x,y)
@@ -114,10 +114,12 @@ function cppf.Grid:isPointInPolygon(x,y)
 		j = i == 1 and N or i-1;
 		xi, yi = point[i][xName], point[i][yName];
 		xj, yj = point[j][xName], point[j][yName];
-		if ( (yi > y) ~= (yj > y) ) and (x < (xj-xi]) * (y-yi) / (yj-yi) + xi) then
+		if ( (yi > y) ~= (yj > y) ) and (x < (xj-xi) * (y-yi) / (yj-yi) + xi) then
 			inside = not inside;
 		end
 	end
+	
+	return inside;
 end
 
 function cppf.Grid:setEvaluationFunction(evalFunction)
@@ -125,7 +127,7 @@ function cppf.Grid:setEvaluationFunction(evalFunction)
 end
 
 function cppf.Grid:evaluate()
-	local category, wakable, costs;
+	local category, walkable, costs;
 	local x, y;
 	for indexY = 1,self.limits.maxIndexY do
 		y = self:getY(indexY);
@@ -135,11 +137,11 @@ function cppf.Grid:evaluate()
 		for indexX = 1,self.limits.maxIndexX do
 			x = self:getX(indexX);
 			if self:isPointInPolygon(x,y) then
-				category, wakable, costs = self:_evaluationFunction(x, y);
+				category, walkable, costs = self:_evaluationFunction(x, y);
 			else
-				category, wakable, costs = 1, false, 1;
+				category, walkable, costs = 1, false, 1;
 			end
-			self.map[indexY][indexX] = {category, wakable, costs};
+			self.map[indexY][indexX] = {category=category, walkable=walkable, costs=costs};
 			self.categoryMax = not self.categroyMax and category or (self.categoryMax < category and category or self.categoryMax);
 		end
 	end
@@ -290,14 +292,14 @@ local searchModes = {['DIAGONAL'] = true, ['ORTHOGONAL'] = true}
 local function traceBackPath(finder, node, startNode)
 	local path = cppf.Path:new()
 	path.grid = finder.grid
-	local lastPathCost = node.f or path:getLength()
+	local lastPathCost = node.f or path:getLength() --todo adapt
 
 	while node.parent do
 		table.insert(path,1,node)
 		node = node.parent
 	end
 	table.insert(path,1,startNode)
-	return path lastPathCost
+	return path, lastPathCost;
 end
 
 cppf.Pathfinder = {}
@@ -393,12 +395,11 @@ end
 function cppf.Pathfinder:getPath(startX, startY, endX, endY, tunnel)
 	reset();
 	local startIndexX, startIndexY = self.grid:getIndexAt(startX, startY);
-	local endIndexX, endIndexY = self.grid:getIndexAt(endX, endY);
-	
+	local endIndexX, endIndexY = self.grid:getIndexAt(endX, endY);	
 	local startNode = self.grid:getNodeAt(startIndexX, startIndexY);
 	local endNode = self.grid:getNodeAt(endIndexX, endIndexY);
-	assert(startNode, ('Invalid location [%d, %d]'):format(startX, startY));
-	assert(endNode and self.grid:isWalkableAt(endX, endY), ('Invalid or unreachable location [%d, %d]'):format(endX, endY));
+	assert(startNode, ('Invalid location [%d (%d), %d (%d)]'):format(startX, startIndexX, startY, startIndexY));
+	assert(endNode and self.grid:isWalkableAt(endIndexX, endIndexY), ('Invalid or unreachable location [%d (%d), %d (%d)]'):format(endX, endIndexX, endY, endIndexY));
 	local _endNode = cppf.Finders[self.finder](self, startNode, endNode, toClear, tunnel);
 	if _endNode then 
 		return traceBackPath(self, _endNode, startNode);
@@ -552,8 +553,8 @@ end
 
 function cppf.multiHeap:createHeap(heapNr)
 	if not self.__heap[heapNr] then
-		if maxHeapNr < heapNr then
-			maxHeapNr = heapNr
+		if self.maxHeapNr < heapNr then
+			self.maxHeapNr = heapNr;
 		end
 		self.__heap[heapNr] = cppf.Heap:new(nil, self.sort);
 		self.nrHeaps = self.nrHeaps + 1;
@@ -823,7 +824,7 @@ local function jump(finder, node, parent, endNode)
 		if finder.allowDiagonal then
 			-- Current node is a jump point if one of his upside/downside neighbours is forced
 			if (finder.grid:isWalkableAt(x+dx,y+1) and ((not finder.grid:isWalkableAt(x,y+1)) or (finder.grid:moreExpensive(x,y,x,y+1)==2))) or
-			(finder.grid:isWalkableAt(x+dx,y-1) and ((not finder.grid:isWalkableAt(x,y-1)) or (finder.grid:moreExpenxive(x,y,x,y-1)==2))) then
+			(finder.grid:isWalkableAt(x+dx,y-1) and ((not finder.grid:isWalkableAt(x,y-1)) or (finder.grid:moreExpensive(x,y,x,y-1)==2))) then
 				return node
 			end
 		else
@@ -836,7 +837,7 @@ local function jump(finder, node, parent, endNode)
 		-- Current node is a jump point if one of his leftside/rightside neighbours is forced
 		if finder.allowDiagonal then
 			if (finder.grid:isWalkableAt(x+1,y+dy) and ((not finder.grid:isWalkableAt(x+1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2))) or
-			(finder.grid:isWalkableAt(x-1,y+dy) and ((not finder.grid:isWalkableAt(x-1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2))) then
+			(finder.grid:isWalkableAt(x-1,y+dy) and ((not finder.grid:isWalkableAt(x-1,y)) or (finder.grid:moreExpensive(x,y,x-1,y)==2))) then
 				return node
 			end
 		else
@@ -894,6 +895,8 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 	end
 end
 
+
+cppf.Finders = {};
 function cppf.Finders.HJS(finder, startNode, endNode, toClear, tunnel)
 	startNode.f = 0; -- not true but does not matter for startNode
 	for i = 1,finder.grid.categoryMax do
