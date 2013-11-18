@@ -25,10 +25,12 @@ function cppf:loadMap(name)
 
 	self.pathPointsVis = { "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","X","Y","Z" }
 	self.testCourse = "f9 umrand";
+--	self.testCourse = "f17";
 	--self.route = { from = { x = 114, z = 42 }, to = { x =  71, z = 56 } }; --f9 umrand
 	self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
-
+--	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; -- f17
+	
 	self.tileSize = 5;
 	self.walkable = 0;
 	self.unwalkable = 1;
@@ -77,6 +79,7 @@ function cppf:update(dt)
 
 		local grid = cppf.Grid:new(self.map);
 		local myFinder = cppf.Pathfinder:new(grid, 'JPS', 0);
+--		myFinder.allowDiagonal = false;
 
 		-- Calculates the path, and its length
 		local path = myFinder:getPath(self.route.from.x, self.route.from.z, self.route.to.x, self.route.to.z)
@@ -187,7 +190,11 @@ function cppf:createGridMapFromCourse(course)
 			--WALKABLE vs. UNWALKABLE
 			map[line][col] = self.walkable;
 			local isInPoly = cppf:pointInPolygon_v2(course.waypoints, self.mapData.xValues, self.mapData.zValues, x, z);
-			local hasFruit = courseplay:area_has_fruit(x, z, FruitUtil.fruitTypes["wheat"].index, self.tileSize/2, self.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
+--			local hasFruit = courseplay:area_has_fruit(x, z, FruitUtil.fruitTypes["wheat"].index, self.tileSize/2, self.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
+			local hasFruit = courseplay:area_has_fruit(x, z);
+--			if hasFruit then
+--				print('has fruit')
+--			end		
 			if not isInPoly or hasFruit then
 				map[line][col] = self.unwalkable;
 			end;
