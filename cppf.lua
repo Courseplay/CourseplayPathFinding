@@ -24,12 +24,12 @@ function cppf:loadMap(name)
 	source(cppf.modDir .. "pathfindingLibrary.lua");
 
 	self.pathPointsVis = { "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","X","Y","Z" }
-	self.testCourse = "f9 umrand";
---	self.testCourse = "f17";
+--	self.testCourse = "f9 umrand";
+	self.testCourse = "f17";
 	--self.route = { from = { x = 114, z = 42 }, to = { x =  71, z = 56 } }; --f9 umrand
-	self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
+--	self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
---	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; -- f17
+	self.route = { from = { x = 2, z = 2 }, to = { x =  14, z = 31 } }; -- f17
 	
 	self.tileSize = 5;
 	self.walkable = 0;
@@ -191,7 +191,7 @@ function cppf:createGridMapFromCourse(course)
 			map[line][col] = self.walkable;
 			local isInPoly = cppf:pointInPolygon_v2(course.waypoints, self.mapData.xValues, self.mapData.zValues, x, z);
 --			local hasFruit = courseplay:area_has_fruit(x, z, FruitUtil.fruitTypes["wheat"].index, self.tileSize/2, self.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
-			local hasFruit = courseplay:area_has_fruit(x, z);
+			local hasFruit = courseplay:area_has_fruit(x, z, nil, self.tileSize/2, self.tileSize/2);
 --			if hasFruit then
 --				print('has fruit')
 --			end		

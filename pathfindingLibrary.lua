@@ -815,6 +815,7 @@ local function jump(finder, node, parent, endNode)
 		-- Current node is a jump point if one of his leftside/rightside neighbours ahead is forced
 		if (finder.grid:isWalkableAt(x-dx,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x-dx,y,finder.walkable))) or
 		(finder.grid:isWalkableAt(x+dx,y-dy,finder.walkable) and (not finder.grid:isWalkableAt(x,y-dy,finder.walkable))) then
+			print('         4')
 			return node
 		end
 	else
@@ -825,6 +826,7 @@ local function jump(finder, node, parent, endNode)
 				-- Current node is a jump point if one of his upside/downside neighbours is forced
 				if (finder.grid:isWalkableAt(x+dx,y+1,finder.walkable) and (not finder.grid:isWalkableAt(x,y+1,finder.walkable))) or
 				(finder.grid:isWalkableAt(x+dx,y-1,finder.walkable) and (not finder.grid:isWalkableAt(x,y-1,finder.walkable))) then
+					print('         5')
 					return node
 				end
 			else
@@ -837,6 +839,7 @@ local function jump(finder, node, parent, endNode)
 			if finder.allowDiagonal then
 				if (finder.grid:isWalkableAt(x+1,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x+1,y,finder.walkable))) or
 				(finder.grid:isWalkableAt(x-1,y+dy,finder.walkable) and (not finder.grid:isWalkableAt(x-1,y,finder.walkable))) then
+					print('         6')
 					return node
 				end
 			else
@@ -848,8 +851,8 @@ local function jump(finder, node, parent, endNode)
 
 	-- Recursive horizontal/vertical search
 	if dx~=0 and dy~=0 then
-		if jump(finder,finder.grid:getNodeAt(x+dx,y),node,endNode) then return node end
-		if jump(finder,finder.grid:getNodeAt(x,y+dy),node,endNode) then return node end
+		if jump(finder,finder.grid:getNodeAt(x+dx,y),node,endNode) then print('         7') return node end
+		if jump(finder,finder.grid:getNodeAt(x,y+dy),node,endNode) then print('         8') return node end
 	end
 
 	-- Recursive diagonal search
@@ -867,7 +870,15 @@ local function identifySuccessors(finder,node,endNode,toClear, tunnel)
 	for i = #neighbours,1,-1 do
 		local skip = false
 		local neighbour = neighbours[i]
+		print(string.format('   neighbour: x,y: %d,%d', neighbour.x, neighbour.y));
+        
 		local jumpNode = jump(finder,neighbour,node,endNode)
+		
+		if jumpNode then
+                print(string.format('      jump: x,y: %d,%d', jumpNode.x, jumpNode.y));
+        else
+                print('      jump: none');
+        end
 
 		-- : in case a diagonal jump point was found in straight mode, skip it.
 		if jumpNode and not finder.allowDiagonal then
@@ -926,6 +937,8 @@ function cppf.Finders.JPS(finder, startNode, endNode, toClear, tunnel)
 		-- Pops the lowest F-cost node, moves it in the closed list
 		node = finder.openList:pop()
 		node.closed = true
+		print(string.format('work on node: x,y: %d,%d / Bin: %d', node.x, node.y, finder.openList.size));
+        
 		-- If the popped node is the endNode, return it
 		if node == endNode then
 			return node
