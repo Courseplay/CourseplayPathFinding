@@ -142,7 +142,7 @@ function cppf.Grid:evaluate()
 				category, walkable, costs = 1, false, 1;
 			end
 			self.map[indexY][indexX] = {category=category, walkable=walkable, costs=costs};
-			self.categoryMax = not self.categroyMax and category or (self.categoryMax < category and category or self.categoryMax);
+			self.categoryMax = not self.categoryMax and category or ((self.categoryMax < category and category) or self.categoryMax);
 		end
 	end
 end
@@ -694,13 +694,14 @@ local function getG(finder, node, parent)
 	
 	if finder.grid:moreExpensive(x,y,x-dx,y-dy) == 0 then
 		g[node.category] = parent.g[node.category] + distance*costs;
-	elseif absX==0 and abxY==1 or abxX==1 and abxY==0 or abxX == 1 and abxY==1 then
+	elseif absX==0 and absY==1 or absX==1 and absY==0 or absX == 1 and absY==1 then
 		local costs1 = finder.grid:getCostsAt(x-dx,y-dy);
 		g[node.category] = parent.g[node.category] + distance/2*costs;
 		g[parent.category] = parent.g[parent.category] + distance/2*costs1;
 	else
 	-- should never happen, to test:
 		print('Fatal error in hjs ;-)');
+		print(tostring(absX) .. ' / ' .. tostring(absY))
 	end
 	
 	return g;
@@ -809,6 +810,14 @@ local function jump(finder, node, parent, endNode)
 	
 	-- If the node to be examined has different costs than parent, return this node
 	if finder.grid:moreExpensive(x, y, x-dx, y-dy)~=0 then return node end;
+	
+	-- If we are before a cost change, return node
+	if dx~=0 and dy~=0 and
+		( (finder.grid:isWalkableAt(x+dx,y) and finder.grid:moreExpensive(x, y, x+dx, y)~=0) or 
+		(finder.grid:isWalkableAt(x,y+dy) and finder.grid:moreExpensive(x, y, x, y+dy)~=0) ) then
+		return node;
+	end
+	if (finder.grid:isWalkableAt(x+dx,y+dy) and finder.grid:moreExpensive(x, y, x+dx, y+dy)~=0) then return node end;
 
 	-- Diagonal search case
 	if dx~=0 and dy~=0 then
@@ -917,6 +926,7 @@ function cppf.Finders.HJS(finder, startNode, endNode, toClear, tunnel)
 		if node == endNode then
 			return node;
 		end
+		
 		-- otherwise, identify successors of the popped node
 		identifySuccessors(finder, node, endNode, toClear, tunnel);
 	end

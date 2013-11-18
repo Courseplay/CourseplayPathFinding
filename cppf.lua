@@ -66,7 +66,7 @@ end;
 local function myEvalFunc(grid, x, y)
 	local category, wakable, costs = 1, true, 1;
 	
-	local hasFruit = courseplay:area_has_fruit(x, y, FruitUtil.fruitTypes["wheat"].index, grid.tileSize/2, grid.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
+	local hasFruit = courseplay:area_has_fruit(x, y, nil, grid.tileSize/2, grid.tileSize/2); --TODO: current fruit --> e.g. combine.grainTankFillType --> FruitUtil.fillTypeToFruitType[fillType]
 	if hasFruit then
 		category = 2;
 	end;
@@ -108,7 +108,7 @@ function cppf:update(dt)
 			print(('Path found! Length: %.2f'):format(path:getLength()))
 			for node, count in path:nodes() do
 				--print(('Step: %d - x: %d - y: %d'):format(count, node:getX(), node:getY()))
-				print(('Step: %d - x,y=%d,%d'):format(count, node.x, node.y))
+				print(('Step: %d - x,y=%d,%d - cat=%d'):format(count, node.x, node.y, node.category))
 				--self.map[node.y][node.x] = count;
 				
 				-- todo: fix
