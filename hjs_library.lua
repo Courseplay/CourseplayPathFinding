@@ -233,6 +233,37 @@ end
 --***********************************************************************************
 --===================================================================================
 
+-- Path
+cppf.Path = {}
+cppf.Path.__index = cppf.Path
+
+function cppf.Path:new()
+	return setmetatable({}, cppf.Path)
+end
+function cppf.Path:iter()
+	local i,pathLen = 1,#self
+	return function()
+		if self[i] then
+			i = i+1
+			return self[i-1],i-1
+		end
+	end
+end
+cppf.Path.nodes = cppf.Path.iter
+function cppf.Path:getLength()
+	local len = 0
+	for i = 2,#self do
+		local dx = self[i].x - self[i-1].x
+		local dy = self[i].y - self[i-1].y
+		len = len + cppf.Heuristics.EUCLIDIAN(dx, dy)
+	end
+	return len
+end
+
+--===================================================================================
+--***********************************************************************************
+--===================================================================================
+
 --PATHFINDER
 --local function isAGrid(grid)
 --	return getmetatable(grid) and getmetatable(getmetatable(grid)) == cppf.Grid
