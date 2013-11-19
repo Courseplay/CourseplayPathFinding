@@ -713,87 +713,86 @@ end
 
 local function findNeighbours(finder, node, tunnel)
 	if node.parent then
-	  local neighbours = {}
-	  local x,y = node.x, node.y
-	  -- Node have a parent, we will prune some neighbours
-	  -- Gets the direction of move
-	  local dx = (x-node.parent.x)/max(abs(x-node.parent.x),1)
-	  local dy = (y-node.parent.y)/max(abs(y-node.parent.y),1)
-
+		local neighbours = {}
+		local x,y = node.x, node.y
+		-- Node have a parent, we will prune some neighbours
+		-- Gets the direction of move
+		local dx = (x-node.parent.x)/max(abs(x-node.parent.x),1)
+		local dy = (y-node.parent.y)/max(abs(y-node.parent.y),1)
+	
 		-- Diagonal move case
-	  if dx~=0 and dy~=0 then
-		local walkY, walkX
-
-		-- Natural neighbours
-		if finder.grid:isWalkableAt(x,y+dy) then
-		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
-		  walkY = true
-		end
-		if finder.grid:isWalkableAt(x+dx,y) then
-		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
-		  walkX = true
-		end
-		if walkX or walkY then
-		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y+dy)
-		end
-
-		-- Forced neighbours
-		if (not finder.grid:isWalkableAt(x-dx,y)) and walkY then
-		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x-dx,y+dy)
-		end
-		if (not finder.grid:isWalkableAt(x,y-dy)) and walkX then
-		  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-dy)
-		end
-
-	  else
+		if dx~=0 and dy~=0 then
+			local walkY, walkX
+	
+			-- Natural neighbours
+			if finder.grid:isWalkableAt(x,y+dy) then
+			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
+			  walkY = true
+			end
+			if finder.grid:isWalkableAt(x+dx,y) then
+			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
+			  walkX = true
+			end
+			if walkX or walkY then
+			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y+dy)
+			end
+	
+			-- Forced neighbours
+			if ((not finder.grid:isWalkableAt(x-dx,y)) or (finder.grid:moreExpensive(x,y,x-dx,y)==2)) and walkY then
+			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x-dx,y+dy)
+			end
+			if ((not finder.grid:isWalkableAt(x,y-dy)) or (finder.grid:moreExpensive(x,y,x,y-dy)==2)) and walkX then
+			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-dy)
+			end
+	
 		-- Move along Y-axis case
-		if dx==0 then
-		  local walkY
-		  if finder.grid:isWalkableAt(x,y+dy) then
-			neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
-
-			-- Forced neighbours are left and right ahead along Y
-			if (not finder.grid:isWalkableAt(x+1,y)) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y+dy)
+		elseif dx==0 then
+			local walkY
+			if finder.grid:isWalkableAt(x,y+dy) then
+				neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+dy)
+	
+				-- Forced neighbours are left and right ahead along Y
+				if ((not finder.grid:isWalkableAt(x+1,y)) or (finder.grid:moreExpensive(x,y,x+1,y)==2)) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y+dy)
+				end
+				if ((not finder.grid:isWalkableAt(x-1,y)) or (finder.grid:moreExpensive(x,y,x-1,y)==2)) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y+dy)
+				end
 			end
-			if (not finder.grid:isWalkableAt(x-1,y)) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y+dy)
+			-- In case diagonal moves are forbidden : Needs to be optimized
+			if not finder.allowDiagonal then
+				if finder.grid:isWalkableAt(x+1,y) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y)
+				end
+				if finder.grid:isWalkableAt(x-1,y)
+					then neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y)
+				end
 			end
-		  end
-		  -- In case diagonal moves are forbidden : Needs to be optimized
-		  if not finder.allowDiagonal then
-			if finder.grid:isWalkableAt(x+1,y) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+1,y)
-			end
-			if finder.grid:isWalkableAt(x-1,y)
-			  then neighbours[#neighbours+1] = finder.grid:getNodeAt(x-1,y)
-			end
-		  end
-		else
+			
 		-- Move along X-axis case
-		  if finder.grid:isWalkableAt(x+dx,y) then
-			neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
-
-			-- Forced neighbours are up and down ahead along X
-			if (not finder.grid:isWalkableAt(x,y+1)) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y+1)
+		else
+			if finder.grid:isWalkableAt(x+dx,y) then
+				neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y)
+	
+				-- Forced neighbours are up and down ahead along X
+				if ((not finder.grid:isWalkableAt(x,y+1)) or (finder.grid:moreExpensive(x,y,x,y+1)==2)) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y+1)
+				end
+				if ((not finder.grid:isWalkableAt(x,y-1)) or (finder.grid:moreExpensive(x,y,x,y-1)==2)) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-1)
+				end
 			end
-			if (not finder.grid:isWalkableAt(x,y-1)) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x+dx,y-1)
-			end
-		  end
-		  -- : In case diagonal moves are forbidden
-		  if not finder.allowDiagonal then
-			if finder.grid:isWalkableAt(x,y+1) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+1)
-			end
-			if finder.grid:isWalkableAt(x,y-1) then
-			  neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y-1)
-			end
-		  end
+			-- : In case diagonal moves are forbidden
+			if not finder.allowDiagonal then
+				if finder.grid:isWalkableAt(x,y+1) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y+1)
+				end
+				if finder.grid:isWalkableAt(x,y-1) then
+					neighbours[#neighbours+1] = finder.grid:getNodeAt(x,y-1)
+				end
+			 end
 		end
-	  end
-	  return neighbours
+		return neighbours
 	end
 
 	-- Node do not have parent, we return all neighbouring nodes
