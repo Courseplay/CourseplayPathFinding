@@ -28,12 +28,11 @@ function cppf:loadMap(name)
 	--self.route = { from = { x = 114, z = 42 }, to = { x =  71, z = 56 } }; --f9 umrand
 	--self.route = { from = { x = 60, z = 56 }, to = { x =  71, z = 1 } }; --f9 umrand
 	--self.route = { from = { x = 10, z = 1 }, to = { x =  34, z = 62 } }; --w1 umrand
-	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; --f17
+--	self.route = { from = { x = 2, z = 2 }, to = { x =  10, z = 30 } }; --f17
 	self.hjsRoute = { from = { x = 140, z = -145 }, to = { x =  200, z = 0 } }; --f17
-
+	
+	self.allowDiagonal = false;
 	self.tileSize = 5;
-	self.walkable = 0;
-	self.unwalkable = 1;
 
 	self.initialized = true;
 end;
@@ -82,12 +81,16 @@ function cppf:update(dt)
 			return;
 		end;
 		
-		local hjsGrid = cppf.Grid:new(5, course.waypoints, 'cx', 'cz');
+		-- create Grid
+		local hjsGrid = cppf.Grid:new(self.tileSize, course.waypoints, 'cx', 'cz');
 		hjsGrid:setEvaluationFunction(myEvalFunc);
 		hjsGrid:evaluate();
 		print('Ecke 1: ' .. tostring(hjsGrid:getX(1)) .. ' / ' .. tostring(hjsGrid:getY(1)) );
 		print('Ecke 3: ' .. tostring(hjsGrid:getX(#hjsGrid.map[1])) .. ' / ' .. tostring(hjsGrid:getY(#hjsGrid.map)) );
-		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');		
+		
+		-- create Finder and search a path
+		local hjsFinder = cppf.Pathfinder:new(hjsGrid, 'HJS');
+		hjsFinder.allowDiagonal = self.allowDiagonal;
 		local hjsPath = hjsFinder:getPath(self.hjsRoute.from.x, self.hjsRoute.from.z, self.hjsRoute.to.x, self.hjsRoute.to.z)
 		
 		local path = hjsPath;
